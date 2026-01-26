@@ -1,0 +1,157 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base styles */
+:root {
+  --eros-dark: #0a0f1a;
+  --eros-darker: #060912;
+  --eros-card: #111827;
+  --eros-primary: #3b82f6;
+  --eros-critical: #ef4444;
+  --eros-major: #f59e0b;
+  --eros-minor: #22c55e;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-color: var(--eros-dark);
+  color: #f8fafc;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--eros-darker);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* Leaflet map customizations */
+.leaflet-container {
+  background: var(--eros-darker);
+  font-family: 'Inter', sans-serif;
+}
+
+.leaflet-tile-pane {
+  filter: brightness(0.6) saturate(0.8);
+}
+
+.leaflet-popup-content-wrapper {
+  background: var(--eros-card);
+  color: #f8fafc;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.leaflet-popup-tip {
+  background: var(--eros-card);
+}
+
+.leaflet-popup-content {
+  margin: 12px;
+}
+
+/* Custom marker styles */
+.pulse-marker {
+  animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse-ring {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.2);
+  }
+}
+
+/* Card styling */
+.eros-card {
+  @apply bg-eros-card rounded-lg border border-eros-border;
+}
+
+.eros-card-header {
+  @apply px-4 py-3 border-b border-eros-border flex items-center justify-between;
+}
+
+.eros-card-content {
+  @apply p-4;
+}
+
+/* Status badges */
+.status-badge {
+  @apply px-2 py-0.5 rounded-full text-xs font-medium uppercase tracking-wide;
+}
+
+.status-badge-critical {
+  @apply bg-eros-critical/20 text-eros-critical border border-eros-critical/30;
+}
+
+.status-badge-major {
+  @apply bg-eros-major/20 text-eros-major border border-eros-major/30;
+}
+
+.status-badge-minor {
+  @apply bg-eros-minor/20 text-eros-minor border border-eros-minor/30;
+}
+
+/* Button styles */
+.btn {
+  @apply px-4 py-2 rounded-lg font-medium transition-all duration-200;
+}
+
+.btn-primary {
+  @apply bg-eros-primary hover:bg-eros-primary-dim text-white;
+}
+
+.btn-secondary {
+  @apply bg-eros-card hover:bg-eros-card-hover text-eros-text border border-eros-border;
+}
+
+.btn-danger {
+  @apply bg-eros-critical hover:bg-eros-critical-dim text-white;
+}
+
+/* Input styles */
+.input {
+  @apply w-full px-3 py-2 bg-eros-darker border border-eros-border rounded-lg
+         text-eros-text placeholder:text-eros-text-dim
+         focus:outline-none focus:border-eros-primary focus:ring-1 focus:ring-eros-primary;
+}
+
+/* Select styles */
+.select {
+  @apply w-full px-3 py-2 bg-eros-darker border border-eros-border rounded-lg
+         text-eros-text
+         focus:outline-none focus:border-eros-primary focus:ring-1 focus:ring-eros-primary;
+}
+
+/* Animation for active incidents */
+@keyframes incident-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
+  }
+}
+
+.incident-pulse {
+  animation: incident-pulse 2s infinite;
+}
