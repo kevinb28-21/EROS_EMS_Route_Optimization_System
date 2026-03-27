@@ -18,8 +18,19 @@ import type {
   IncidentStatus,
 } from '../types';
 
+/**
+ * API base URL for axios.
+ * - Local dev: leave VITE_API_URL unset → `/api/v1` (Vite proxies to backend).
+ * - Production (Netlify): set VITE_API_URL to your Railway backend origin, e.g. `https://eros-api.up.railway.app`
+ */
+function getApiBaseUrl(): string {
+  const raw = import.meta.env.VITE_API_URL as string | undefined;
+  const trimmed = raw?.replace(/\/$/, '') ?? '';
+  return trimmed ? `${trimmed}/api/v1` : '/api/v1';
+}
+
 const api = axios.create({
-  baseURL: '/api/v1',
+  baseURL: getApiBaseUrl(),
   headers: {
     'Content-Type': 'application/json',
   },

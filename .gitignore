@@ -27,9 +27,10 @@ ENV/
 env/
 .venv/
 
-# IDE
+# IDE / local agents
 .idea/
 .vscode/
+.claude/
 *.swp
 *.swo
 *~

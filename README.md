@@ -1,265 +1,183 @@
-# EROS - EMS Route Optimization System
+# EROS — EMS Route Optimization System
 
-A unified EMS Dispatcher System that processes real-time data to optimize emergency response routing and hospital selection.
+A unified EMS dispatcher system that supports route planning, hospital selection, traffic-aware ETAs, operational simulation, and a single web dashboard.
 
-**Course**: COE892 — Distributed Systems and Cloud Computing (W2026, TMU)
-
----
-
-## Features
-
-### 1. Intelligent Routing Engine
-- **A* pathfinding** on a simplified Toronto road network
-- Route calculation between incidents, vehicles, and hospitals
-- Real-time route visualization on the map
-- Distance and ETA estimations
-- **Traffic condition simulation** — time-of-day speed multipliers model rush-hour congestion; ETAs update to reflect current traffic levels
-
-### 2. Hospital & Resource Availability Module
-- Track hospital capacity (ER beds, occupancy rates)
-- Monitor hospital status (Open, Diversion, Closed)
-- **Smart hospital recommendations** based on:
-  - Distance from incident
-  - Current capacity/availability
-  - Required specialties (trauma, cardiac, etc.)
-  - Incident severity
-
-### 3. EMS Operations Communication Dashboard
-- Interactive map showing all entities (OpenStreetMap-based)
-- **Auto-refreshing** data every 3 seconds to reflect live simulation state
-- Real-time incident list with severity indicators
-- Vehicle status tracking
-- Hospital availability overview with capacity bars
-- Event log for system communications
-- **Simulation controls** — manually advance the simulation or generate a random incident from the header toolbar
-- **Traffic status badge** — shows current congestion level in the header
+**Course:** COE892 — Distributed Systems and Cloud Computing (W2026, TMU)
 
 ---
 
-## Architecture
+## Repository layout
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                              EROS                                   │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                      │
-│   ┌─────────────────────────────────────────────────────────────┐   │
-│   │                  Frontend (React + Vite)                     │   │
-│   │   • React Leaflet Map                                        │   │
-│   │   • Incident/Vehicle/Hospital Panels                         │   │
-│   │   • TanStack Query for data fetching                         │   │
-│   └─────────────────────────────────────────────────────────────┘   │
-│                              │                                       │
-│                              ▼ REST API                              │
-│   ┌─────────────────────────────────────────────────────────────┐   │
-│   │                  Backend (FastAPI)                           │   │
-│   │   ┌─────────────┐  ┌────────────────┐  ┌─────────────────┐  │   │
-│   │   │  Routing    │  │   Hospital     │  │   Simulation    │  │   │
-│   │   │  Service    │  │  Recommender   │  │    Engine       │  │   │
-│   │   │  (A* algo)  │  │                │  │                 │  │   │
-│   │   └─────────────┘  └────────────────┘  └─────────────────┘  │   │
-│   └─────────────────────────────────────────────────────────────┘   │
-│                              │                                       │
-│                              ▼                                       │
-│   ┌─────────────────────────────────────────────────────────────┐   │
-│   │                   PostgreSQL Database                        │   │
-│   │   Incidents • Vehicles • Hospitals • StatusUpdates           │   │
-│   └─────────────────────────────────────────────────────────────┘   │
-│                                                                      │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Tech Stack
-
-| Layer     | Technology                                          |
-|-----------|-----------------------------------------------------|
-| Frontend  | React 18, Vite, TypeScript, TailwindCSS             |
-| Map       | React Leaflet, OpenStreetMap tiles (CARTO Dark)     |
-| State     | TanStack Query (React Query)                        |
-| Backend   | Python 3.11+, FastAPI, Uvicorn                      |
-| Database  | SQLite (dev) / PostgreSQL (prod) with SQLAlchemy ORM |
-| Routing   | NetworkX + custom A* implementation                 |
-
----
-
-## Project Structure
-
-```
-eros/
-├── backend/
+EROS_EMS-Route_Optimization_System/
+├── backend/                 # FastAPI API (deploy on Railway)
 │   ├── app/
-│   │   ├── main.py           # FastAPI application entry point
-│   │   ├── config.py         # Configuration management
-│   │   ├── database.py       # Database setup
-│   │   ├── models.py         # SQLAlchemy models
-│   │   ├── schemas.py        # Pydantic schemas
-│   │   ├── routers/          # API endpoints
-│   │   │   ├── incidents.py
-│   │   │   ├── vehicles.py
-│   │   │   ├── hospitals.py
-│   │   │   ├── routes.py
-│   │   │   └── status_updates.py
-│   │   └── services/         # Business logic
-│   │       ├── routing.py         # A* pathfinding
-│   │       ├── hospital_recommender.py
-│   │       ├── simulation.py      # Demo simulation
-│   │       └── seeder.py          # Demo data
-│   ├── tests/                # Unit tests
+│   ├── Dockerfile           # PORT-aware for Railway
+│   ├── Procfile             # Nixpacks / process start
 │   ├── requirements.txt
 │   └── .env.example
-│
-├── frontend/
-│   ├── src/
-│   │   ├── main.tsx
-│   │   ├── App.tsx           # Main dashboard
-│   │   ├── api/              # API client
-│   │   ├── components/       # React components
-│   │   │   ├── MapPanel.tsx
-│   │   │   ├── IncidentList.tsx
-│   │   │   ├── VehicleList.tsx
-│   │   │   ├── HospitalList.tsx
-│   │   │   ├── EventLog.tsx
-│   │   │   └── ...modals
-│   │   └── types/            # TypeScript types
-│   ├── package.json
-│   └── vite.config.ts
-│
+├── frontend/                # React + Vite SPA (deploy on Netlify)
+│   ├── public/_redirects    # SPA fallback (optional)
+│   └── src/
+├── netlify.toml             # Netlify: base=frontend, build + SPA redirects
+├── docker-compose.yml
 └── README.md
 ```
 
 ---
 
-## Setup Instructions
+## Features
+
+### Intelligent routing
+- **A\*** pathfinding on a simplified Toronto road network (NetworkX graph)
+- Route polylines, distance, and ETA between incidents, vehicles, and hospitals
+- **Traffic simulation** — time-of-day speed multipliers (rush hour, night, etc.); ETAs reflect current traffic level
+
+### Hospital recommendation
+- Weighted scoring: distance (35%), capacity (30%), specialty match (25%), trauma center bonus (10%)
+- Respects hospital status (open, diversion, closed) and incident severity
+
+### Dispatcher dashboard
+- React Leaflet map (CARTO Dark / OSM-based tiles)
+- Incident, vehicle, and hospital panels; event log; full incident lifecycle actions
+- **Auto-refresh** every 3 seconds for live simulation state
+- **Simulation toolbar** — **Tick** (advance one step), **Incident** (random downtown incident)
+- **Traffic badge** in the header (congestion level)
+
+### Architecture
+- **Frontend:** React + Vite, TanStack Query  
+- **Backend:** FastAPI, modular routers + services  
+- **Database:** SQLite (default local) / PostgreSQL (Railway, Docker)  
+- **Background simulation engine** (optional via `SIMULATION_ENABLED`)
+
+---
+
+## Tech stack
+
+| Layer    | Technology |
+|----------|------------|
+| Frontend | React 18, TypeScript, Vite, TailwindCSS, TanStack Query, React Leaflet |
+| Backend  | Python 3.11+, FastAPI, Uvicorn, SQLAlchemy, Pydantic |
+| Database | SQLite (dev default) / PostgreSQL (production) |
+| Routing  | NetworkX + custom A* |
+
+---
+
+## Local development
 
 ### Prerequisites
+- Python 3.11+
+- Node.js 18+
 
-- **Python 3.11+** with pip
-- **Node.js 18+** with npm
-
-### Backend Setup
+### Backend
 
 ```bash
-# Navigate to backend directory
 cd backend
-
-# Create and activate virtual environment
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
+source venv/bin/activate   # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-
-# (Optional) Copy and edit the environment file
-# Default config already uses SQLite — no database setup required
 cp .env.example .env
-
-# Start the backend server
-uvicorn app.main:app --reload --port 8000
+# Default DATABASE_URL is SQLite — no Postgres required for quick runs
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-The backend will:
-- Initialize database tables on first run
-- Seed demo data (hospitals, vehicles, sample incidents)
-- Be available at `http://localhost:8000`
-- API docs at `http://localhost:8000/api/docs`
+- API: `http://localhost:8000`
+- Docs: `http://localhost:8000/api/docs`
 
-### Frontend Setup
+### Frontend
 
 ```bash
-# Navigate to frontend directory
 cd frontend
-
-# Install dependencies
 npm install
-
-# Start development server
 npm run dev
 ```
 
-The frontend will be available at `http://localhost:5173`
+- App: `http://localhost:5173`
+- Leave **`VITE_API_URL` unset** so the Vite dev proxy forwards `/api` to `http://localhost:8000`.
 
----
+### Docker Compose
 
-## Demo Script
+From the repository root:
 
-Follow these steps to demonstrate the system:
-
-### 0. Start the System
 ```bash
-# Terminal 1: Backend (auto-starts simulation engine)
-cd backend && uvicorn app.main:app --reload --port 8000
-
-# Terminal 2: Frontend
-cd frontend && npm run dev
+docker compose up
 ```
 
-### 1. Initial State
-- Open the dashboard at `http://localhost:5173`
-- Observe the map centered on downtown Toronto
-- Note the seeded data: 6 hospitals, 8 vehicles, and 6 pending incidents
-- The **simulation engine** runs automatically in the background (every 5 s)
-- The **traffic badge** in the header shows current congestion level
+---
 
-### 2. Create a New Incident
-- Click **"New Incident"** button
-- Fill in:
-  - Description: "Chest pain, 65-year-old male"
-  - Severity: **CRITICAL**
-  - Leave default Toronto coordinates or adjust
-- Click **"Report Incident"**
+## Deployment: Railway (backend) + Netlify (frontend)
 
-### 3. Dispatch a Vehicle
-- Click on the new incident (or any pending incident)
-- In the modal, select an available vehicle
-- Click **"Dispatch Vehicle"**
-- Observe:
-  - Route appears on the map (blue dashed line)
-  - Vehicle status changes to "Dispatched"
-  - Event log shows dispatch message
+- **Railway** — FastAPI + **PostgreSQL** (managed `DATABASE_URL`).
+- **Netlify** — static build (`frontend/dist`). Root **`netlify.toml`** sets `base = "frontend"`.
 
-### 4. Progress the Incident
-- Click on the dispatched incident
-- Click **"Mark On Scene"** (simulating arrival)
-- Note hospital recommendations appear
-- Select a recommended hospital
-- Click **"Set Destination"**
-- Click **"Begin Transport"**
-- Finally, click **"Complete Incident"**
+### Railway — API
 
-### 5. Hospital Capacity Changes
-- Observe hospital capacity bars in the Hospital panel
-- Capacity fluctuates automatically every simulation tick
-- Hospitals with >95% capacity go to DIVERSION status
+1. New project → connect GitHub → add **PostgreSQL**.
+2. Add a service, **root directory:** `backend`.
+3. Deploy with **Dockerfile** or **Nixpacks** (`Procfile` uses `$PORT`).
+4. Set variables, for example:
 
-### 6. Simulation Controls (Demo Toolbar)
-- **Tick** button: manually advance the simulation one step (moves vehicles, fluctuates hospital capacity)
-- **Incident** button: generate a random incident at a downtown Toronto location
-- Data auto-refreshes every 3 seconds — no manual reload needed
+| Variable | Notes |
+|----------|--------|
+| `DATABASE_URL` | Usually from Postgres plugin |
+| `CORS_ORIGINS` | Must include your Netlify URL, e.g. `https://your-app.netlify.app,http://localhost:5173` |
+| `DEBUG` | `false` in production |
+| `SIMULATION_ENABLED` | `true` or `false` |
+
+5. Copy the public **HTTPS API URL** (e.g. `https://….up.railway.app`). Health: `GET /health`.
+
+### Netlify — frontend
+
+1. New site from GitHub (same repo).
+2. Netlify reads **`netlify.toml`** at repo root (`base = frontend`).
+3. Add build env **`VITE_API_URL`** = Railway API origin only (no path, no trailing slash). Redeploy after changes.
+
+### CORS
+
+`CORS_ORIGINS` on Railway must include your exact Netlify origin (`https://…netlify.app`).
 
 ---
 
-## API Endpoints
+## Configuration
 
-| Method | Endpoint                        | Description                    |
-|--------|--------------------------------|--------------------------------|
-| GET    | `/api/v1/incidents`            | List all incidents             |
-| POST   | `/api/v1/incidents`            | Create new incident            |
-| GET    | `/api/v1/incidents/{id}`       | Get incident details           |
-| POST   | `/api/v1/incidents/{id}/assign-vehicle` | Dispatch vehicle      |
-| POST   | `/api/v1/incidents/{id}/assign-hospital` | Set destination       |
-| GET    | `/api/v1/vehicles`             | List all vehicles              |
-| GET    | `/api/v1/vehicles/available`   | List available vehicles        |
-| GET    | `/api/v1/hospitals`            | List all hospitals             |
-| POST   | `/api/v1/hospitals/recommend`  | Get hospital recommendations   |
-| POST   | `/api/v1/routes/calculate`     | Calculate route between points |
-| GET    | `/api/v1/status-updates/recent`| Get recent event log           |
-| GET    | `/api/v1/simulation/status`    | Get simulation & traffic state |
-| POST   | `/api/v1/simulation/tick`      | Advance simulation one step    |
-| POST   | `/api/v1/simulation/generate-incident` | Create random incident |
+### Backend (`backend/.env` or Railway)
 
-Full API documentation available at `/api/docs` (Swagger UI)
+| Variable | Description |
+|----------|-------------|
+| `DATABASE_URL` | SQLAlchemy URL |
+| `API_HOST` / `API_PORT` | Bind; cloud often sets `PORT` |
+| `DEBUG` | `true` / `false` |
+| `CORS_ORIGINS` | Comma-separated browser origins |
+| `SIMULATION_ENABLED` | Run background simulation engine |
+| `SIMULATION_INTERVAL_SECONDS` | Tick interval |
+
+### Frontend (Netlify build env)
+
+| Variable | Description |
+|----------|-------------|
+| `VITE_API_URL` | Production: Railway API **origin** only. Local: leave unset. |
+
+---
+
+## API overview
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/incidents` | List incidents |
+| POST | `/api/v1/incidents` | Create incident |
+| GET | `/api/v1/incidents/{id}` | Incident details |
+| POST | `/api/v1/incidents/{id}/assign-vehicle` | Dispatch vehicle |
+| POST | `/api/v1/incidents/{id}/assign-hospital` | Set destination hospital |
+| GET | `/api/v1/vehicles` | List vehicles |
+| GET | `/api/v1/hospitals` | List hospitals |
+| POST | `/api/v1/hospitals/recommend` | Hospital recommendations |
+| POST | `/api/v1/routes/calculate` | Route between points |
+| GET | `/api/v1/status-updates/recent` | Recent event log |
+| GET | `/api/v1/simulation/status` | Simulation & traffic state |
+| POST | `/api/v1/simulation/tick` | Advance simulation one step |
+| POST | `/api/v1/simulation/generate-incident` | Random incident |
+
+Interactive docs: `/api/docs` on the backend.
 
 ---
 
@@ -267,83 +185,39 @@ Full API documentation available at `/api/docs` (Swagger UI)
 
 ```bash
 cd backend
-
-# Run all tests
 pytest
-
-# Run with coverage
-pytest --cov=app
-
-# Run specific test file
 pytest tests/test_routing.py -v
 ```
 
 ---
 
-## Configuration
+## Demo workflow (local)
 
-### Backend Environment Variables
-
-| Variable                    | Default                              | Description                 |
-|-----------------------------|--------------------------------------|-----------------------------|
-| `DATABASE_URL`              | `sqlite:///./eros.db`                | Database connection string  |
-| `API_HOST`                  | `0.0.0.0`                            | API host                    |
-| `API_PORT`                  | `8000`                               | API port                    |
-| `DEBUG`                     | `true`                               | Enable debug mode           |
-| `CORS_ORIGINS`              | `http://localhost:5173`              | Allowed CORS origins        |
-| `SIMULATION_ENABLED`        | `true`                               | Enable background sim       |
-| `SIMULATION_INTERVAL_SECONDS` | `5`                                | Simulation tick interval    |
+1. Open `http://localhost:5173` — seeded hospitals, vehicles, incidents; simulation runs in the background.
+2. Use **Tick** / **Incident** in the header, or **New Incident** for a manual report.
+3. Open an incident → **Dispatch Vehicle** → route on map → **Mark On Scene** → hospital recommendations → **Set Destination** → **Begin Transport** → **Complete Incident**.
 
 ---
 
-## Key Design Decisions
+## Design notes
 
-### Routing Algorithm
-- Uses **A* pathfinding** with a simplified Toronto road network
-- Graph built with ~30 nodes (major intersections) and ~50 edges
-- Heuristic: Haversine (great-circle) distance
-- Edge weights: Road segment distances
-- Base speeds vary by road type (highway: 80 km/h, arterial: 50 km/h, local: 30 km/h)
-- **Traffic simulation**: time-of-day multipliers (rush hour 0.6×, night 1.5×) scale effective speeds; EMS vehicles running lights/sirens are partially buffered (50% impact reduction)
-
-### Hospital Recommendation
-- **Weighted scoring** system:
-  - Distance: 35% weight (closer is better)
-  - Capacity: 30% weight (more available beds is better)
-  - Specialty match: 25% weight (matching required specialties)
-  - Trauma center bonus: 10% weight (for critical incidents)
-
-### Frontend Architecture
-- **TanStack Query** for server state management with auto-refresh
-- **Component-based** architecture with clear separation
-- **Dark theme** "Command Center" aesthetic for EMS feel
+- **Routing:** A* with Haversine heuristic; road-type base speeds; traffic multipliers by time of day.
+- **Hospital scoring:** Distance, capacity, specialties, trauma center bonus for critical cases.
+- **Frontend:** TanStack Query with ~3s refetch; dark “command center” UI.
 
 ---
 
-## Limitations & Future Work
+## Limitations & future work
 
-### Current Limitations
-- Road network is simplified (downtown Toronto only)
-- No real GPS integration (positions are simulated)
-- No authentication/authorization (appropriate for demo)
-- Single-server deployment (no microservices)
-
-### Potential Enhancements
-- Integrate with OSRM or GraphHopper for real routing
-- Add WebSocket for true real-time updates
-- Implement multi-vehicle dispatch for major incidents
-- Add historical analytics and reporting
-- Mobile-responsive design for tablet deployment
+- Simplified road graph (no OSRM/GraphHopper in-tree).
+- Simulated GPS / capacity (no live feeds).
+- No auth (demo / course scope).
+- Polling instead of WebSockets for real-time updates.
 
 ---
 
-## License
+## License & authors
 
-This project is created for educational purposes as part of COE892 at TMU.
+Educational use — COE892, Winter 2026, Toronto Metropolitan University.
 
----
-
-## Authors
-
-Created for COE892 — Distributed Systems and Cloud Computing
-Winter 2026, Toronto Metropolitan University
+**Authors:** project team (COE892 W2026).

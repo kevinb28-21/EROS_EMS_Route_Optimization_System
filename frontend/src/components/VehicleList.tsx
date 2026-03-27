@@ -4,7 +4,6 @@
  * Compact list of EMS vehicles with status indicators.
  */
 
-import { MapPin } from 'lucide-react';
 import type { Vehicle } from '../types';
 import clsx from 'clsx';
 

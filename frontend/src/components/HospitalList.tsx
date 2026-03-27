@@ -4,7 +4,7 @@
  * Compact list of hospitals with capacity bars.
  */
 
-import { MapPin, AlertTriangle } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import type { Hospital } from '../types';
 import clsx from 'clsx';
 
