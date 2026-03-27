@@ -177,6 +177,126 @@ class TestRoutingEdgeCases:
             43.65, -79.38,
             43.66, -79.39
         )
-        
+
         assert result is not None
         assert result["distance_km"] > 0
+
+
+class TestTrafficSimulation:
+    """Test suite for traffic condition simulation."""
+
+    @pytest.fixture
+    def routing(self):
+        return RoutingService()
+
+    # =========================================================================
+    # Traffic Multiplier Tests
+    # =========================================================================
+
+    def test_traffic_multiplier_returns_float(self, routing):
+        """get_traffic_multiplier should return a float."""
+        result = routing.get_traffic_multiplier(hour=12)
+        assert isinstance(result, float)
+
+    def test_traffic_multiplier_rush_hour_slower(self, routing):
+        """Rush hour (8am) should produce a lower multiplier than overnight."""
+        rush = routing.get_traffic_multiplier(hour=8)
+        overnight = routing.get_traffic_multiplier(hour=3)
+        # Overnight traffic is faster (higher multiplier) than rush hour
+        assert overnight > rush
+
+    def test_traffic_multiplier_ems_buffering(self, routing):
+        """EMS multiplier should be partially buffered (closer to 1.0 than raw)."""
+        # Raw rush-hour multiplier would be 0.6; EMS gets 50% impact reduction
+        # So EMS multiplier should be > 0.6 and < 1.0
+        rush_multiplier = routing.get_traffic_multiplier(hour=8)
+        assert rush_multiplier > 0.6
+        assert rush_multiplier < 1.0
+
+    def test_traffic_multiplier_no_hour_defaults(self, routing):
+        """No hour argument should return a valid multiplier (default behavior)."""
+        result = routing.get_traffic_multiplier()
+        assert isinstance(result, float)
+        assert result > 0
+
+    def test_traffic_multiplier_all_hours_positive(self, routing):
+        """All 24 hours should produce positive multipliers."""
+        for hour in range(24):
+            multiplier = routing.get_traffic_multiplier(hour=hour)
+            assert multiplier > 0, f"Multiplier for hour {hour} should be positive"
+
+    # =========================================================================
+    # Traffic Conditions Tests
+    # =========================================================================
+
+    def test_traffic_conditions_returns_dict(self, routing):
+        """get_traffic_conditions should return a dict."""
+        result = routing.get_traffic_conditions()
+        assert isinstance(result, dict)
+
+    def test_traffic_conditions_has_required_keys(self, routing):
+        """Traffic conditions dict should have level and description keys."""
+        result = routing.get_traffic_conditions()
+        assert "level" in result
+        assert "description" in result
+
+    def test_traffic_conditions_level_is_string(self, routing):
+        """Traffic level should be a non-empty string."""
+        result = routing.get_traffic_conditions()
+        assert isinstance(result["level"], str)
+        assert len(result["level"]) > 0
+
+    def test_traffic_conditions_level_valid_value(self, routing):
+        """Traffic level should be one of the known values."""
+        result = routing.get_traffic_conditions()
+        valid_levels = {"clear", "light", "moderate", "heavy", "normal"}
+        assert result["level"] in valid_levels
+
+    # =========================================================================
+    # Traffic-Aware Route Tests
+    # =========================================================================
+
+    def test_route_with_hour_returns_traffic_fields(self, routing):
+        """Route calculated with an hour param should include traffic metadata."""
+        result = routing.calculate_route(
+            43.6453, -79.3806,
+            43.6600, -79.3885,
+            hour=8  # Rush hour
+        )
+        assert result is not None
+        assert "traffic_level" in result
+        assert "traffic_description" in result
+
+    def test_route_rush_hour_slower_than_overnight(self, routing):
+        """Rush hour ETA should be higher than overnight ETA for same route."""
+        rush = routing.calculate_route(
+            43.6453, -79.3806,
+            43.6600, -79.3885,
+            hour=8  # Peak rush hour
+        )
+        overnight = routing.calculate_route(
+            43.6453, -79.3806,
+            43.6600, -79.3885,
+            hour=3  # Overnight, fastest
+        )
+        assert rush is not None
+        assert overnight is not None
+        # Rush hour should take longer than overnight
+        assert rush["estimated_time_minutes"] > overnight["estimated_time_minutes"]
+
+    def test_route_distance_unchanged_by_traffic(self, routing):
+        """Traffic should affect time but not distance."""
+        rush = routing.calculate_route(
+            43.6453, -79.3806,
+            43.6600, -79.3885,
+            hour=8
+        )
+        overnight = routing.calculate_route(
+            43.6453, -79.3806,
+            43.6600, -79.3885,
+            hour=3
+        )
+        assert rush is not None
+        assert overnight is not None
+        # Distance should be the same regardless of traffic
+        assert abs(rush["distance_km"] - overnight["distance_km"]) < 0.01

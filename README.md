@@ -13,6 +13,7 @@ A unified EMS Dispatcher System that processes real-time data to optimize emerge
 - Route calculation between incidents, vehicles, and hospitals
 - Real-time route visualization on the map
 - Distance and ETA estimations
+- **Traffic condition simulation** — time-of-day speed multipliers model rush-hour congestion; ETAs update to reflect current traffic levels
 
 ### 2. Hospital & Resource Availability Module
 - Track hospital capacity (ER beds, occupancy rates)
@@ -25,10 +26,13 @@ A unified EMS Dispatcher System that processes real-time data to optimize emerge
 
 ### 3. EMS Operations Communication Dashboard
 - Interactive map showing all entities (OpenStreetMap-based)
+- **Auto-refreshing** data every 3 seconds to reflect live simulation state
 - Real-time incident list with severity indicators
 - Vehicle status tracking
-- Hospital availability overview
+- Hospital availability overview with capacity bars
 - Event log for system communications
+- **Simulation controls** — manually advance the simulation or generate a random incident from the header toolbar
+- **Traffic status badge** — shows current congestion level in the header
 
 ---
 
@@ -75,7 +79,7 @@ A unified EMS Dispatcher System that processes real-time data to optimize emerge
 | Map       | React Leaflet, OpenStreetMap tiles (CARTO Dark)     |
 | State     | TanStack Query (React Query)                        |
 | Backend   | Python 3.11+, FastAPI, Uvicorn                      |
-| Database  | PostgreSQL with SQLAlchemy ORM                      |
+| Database  | SQLite (dev) / PostgreSQL (prod) with SQLAlchemy ORM |
 | Routing   | NetworkX + custom A* implementation                 |
 
 ---
@@ -132,8 +136,7 @@ eros/
 ### Prerequisites
 
 - **Python 3.11+** with pip
-- **Node.js 18+** with npm/pnpm
-- **PostgreSQL 14+** (or use SQLite for quick testing)
+- **Node.js 18+** with npm
 
 ### Backend Setup
 
@@ -148,12 +151,9 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Copy environment file and configure
+# (Optional) Copy and edit the environment file
+# Default config already uses SQLite — no database setup required
 cp .env.example .env
-# Edit .env to set your DATABASE_URL
-
-# For quick testing with SQLite (no PostgreSQL needed):
-# Set DATABASE_URL=sqlite:///./eros.db in .env
 
 # Start the backend server
 uvicorn app.main:app --reload --port 8000
@@ -186,10 +186,21 @@ The frontend will be available at `http://localhost:5173`
 
 Follow these steps to demonstrate the system:
 
+### 0. Start the System
+```bash
+# Terminal 1: Backend (auto-starts simulation engine)
+cd backend && uvicorn app.main:app --reload --port 8000
+
+# Terminal 2: Frontend
+cd frontend && npm run dev
+```
+
 ### 1. Initial State
 - Open the dashboard at `http://localhost:5173`
 - Observe the map centered on downtown Toronto
-- Note the seeded data: 6 hospitals, 8 vehicles, and several pending incidents
+- Note the seeded data: 6 hospitals, 8 vehicles, and 6 pending incidents
+- The **simulation engine** runs automatically in the background (every 5 s)
+- The **traffic badge** in the header shows current congestion level
 
 ### 2. Create a New Incident
 - Click **"New Incident"** button
@@ -219,8 +230,13 @@ Follow these steps to demonstrate the system:
 
 ### 5. Hospital Capacity Changes
 - Observe hospital capacity bars in the Hospital panel
-- In a real demo, capacity fluctuates over time
+- Capacity fluctuates automatically every simulation tick
 - Hospitals with >95% capacity go to DIVERSION status
+
+### 6. Simulation Controls (Demo Toolbar)
+- **Tick** button: manually advance the simulation one step (moves vehicles, fluctuates hospital capacity)
+- **Incident** button: generate a random incident at a downtown Toronto location
+- Data auto-refreshes every 3 seconds — no manual reload needed
 
 ---
 
@@ -239,6 +255,9 @@ Follow these steps to demonstrate the system:
 | POST   | `/api/v1/hospitals/recommend`  | Get hospital recommendations   |
 | POST   | `/api/v1/routes/calculate`     | Calculate route between points |
 | GET    | `/api/v1/status-updates/recent`| Get recent event log           |
+| GET    | `/api/v1/simulation/status`    | Get simulation & traffic state |
+| POST   | `/api/v1/simulation/tick`      | Advance simulation one step    |
+| POST   | `/api/v1/simulation/generate-incident` | Create random incident |
 
 Full API documentation available at `/api/docs` (Swagger UI)
 
@@ -267,7 +286,7 @@ pytest tests/test_routing.py -v
 
 | Variable                    | Default                              | Description                 |
 |-----------------------------|--------------------------------------|-----------------------------|
-| `DATABASE_URL`              | `postgresql://eros:...`              | Database connection string  |
+| `DATABASE_URL`              | `sqlite:///./eros.db`                | Database connection string  |
 | `API_HOST`                  | `0.0.0.0`                            | API host                    |
 | `API_PORT`                  | `8000`                               | API port                    |
 | `DEBUG`                     | `true`                               | Enable debug mode           |
@@ -284,7 +303,8 @@ pytest tests/test_routing.py -v
 - Graph built with ~30 nodes (major intersections) and ~50 edges
 - Heuristic: Haversine (great-circle) distance
 - Edge weights: Road segment distances
-- Speed estimates vary by road type (highway: 80 km/h, arterial: 50 km/h)
+- Base speeds vary by road type (highway: 80 km/h, arterial: 50 km/h, local: 30 km/h)
+- **Traffic simulation**: time-of-day multipliers (rush hour 0.6×, night 1.5×) scale effective speeds; EMS vehicles running lights/sirens are partially buffered (50% impact reduction)
 
 ### Hospital Recommendation
 - **Weighted scoring** system:

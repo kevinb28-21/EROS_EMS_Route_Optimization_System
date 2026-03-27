@@ -41,7 +41,9 @@ def calculate_route(request: RouteRequest):
         destination=LocationBase(latitude=request.destination_lat, longitude=request.destination_lng),
         distance_km=result["distance_km"],
         estimated_time_minutes=result["estimated_time_minutes"],
-        polyline=result["polyline"]
+        polyline=result["polyline"],
+        traffic_level=result.get("traffic_level"),
+        traffic_description=result.get("traffic_description"),
     )
 
 

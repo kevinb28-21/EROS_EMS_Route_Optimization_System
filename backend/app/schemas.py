@@ -255,6 +255,8 @@ class RouteResponse(BaseModel):
     distance_km: float
     estimated_time_minutes: float
     polyline: List[List[float]]  # List of [lat, lng] pairs
+    traffic_level: Optional[str] = None
+    traffic_description: Optional[str] = None
 
 
 class HospitalRecommendation(BaseModel):

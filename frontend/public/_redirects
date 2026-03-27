@@ -1,0 +1,5 @@
+# Proxy API calls to the backend (replace with your Railway/Render URL)
+/api/v1/*  https://your-backend.railway.app/api/v1/:splat  200
+
+# SPA fallback — all other routes serve index.html
+/*  /index.html  200

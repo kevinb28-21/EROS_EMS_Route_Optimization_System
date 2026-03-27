@@ -80,6 +80,8 @@ export interface RouteSegment {
   polyline: [number, number][];
   distance_km: number;
   estimated_time_minutes: number;
+  traffic_level?: string;
+  traffic_description?: string;
 }
 
 export interface RouteProgress {
