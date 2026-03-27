@@ -261,9 +261,20 @@ export default function IncidentDetailModal({
               </div>
               
               {incident.route_data?.to_scene && (
-                <div className="mt-2 text-xs text-eros-text-muted">
-                  ETA: ~{incident.route_data.to_scene.estimated_time_minutes.toFixed(0)} min
-                  ({incident.route_data.to_scene.distance_km.toFixed(1)} km)
+                <div className="mt-2 text-xs text-eros-text-muted space-y-0.5">
+                  <span>
+                    ETA: ~{incident.route_data.to_scene.estimated_time_minutes.toFixed(0)} min
+                    ({incident.route_data.to_scene.distance_km.toFixed(1)} km)
+                  </span>
+                  {incident.route_data.to_scene.traffic_level && (
+                    <span className={`ml-2 capitalize ${
+                      incident.route_data.to_scene.traffic_level === 'heavy' ? 'text-eros-critical' :
+                      incident.route_data.to_scene.traffic_level === 'moderate' ? 'text-eros-major' :
+                      'text-eros-minor'
+                    }`}>
+                      · {incident.route_data.to_scene.traffic_level} traffic
+                    </span>
+                  )}
                 </div>
               )}
             </div>
@@ -358,6 +369,15 @@ export default function IncidentDetailModal({
                 <div className="mt-2 text-xs text-eros-text-muted">
                   ETA: ~{incident.route_data.to_hospital.estimated_time_minutes.toFixed(0)} min
                   ({incident.route_data.to_hospital.distance_km.toFixed(1)} km)
+                  {incident.route_data.to_hospital.traffic_level && (
+                    <span className={`ml-1 capitalize ${
+                      incident.route_data.to_hospital.traffic_level === 'heavy' ? 'text-eros-critical' :
+                      incident.route_data.to_hospital.traffic_level === 'moderate' ? 'text-eros-major' :
+                      'text-eros-minor'
+                    }`}>
+                      · {incident.route_data.to_hospital.traffic_level} traffic
+                    </span>
+                  )}
                 </div>
               )}
             </div>

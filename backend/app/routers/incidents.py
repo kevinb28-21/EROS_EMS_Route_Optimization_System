@@ -243,7 +243,9 @@ def assign_vehicle(
                 "to_scene": {
                     "polyline": route["polyline"],
                     "distance_km": route["distance_km"],
-                    "estimated_time_minutes": route["estimated_time_minutes"]
+                    "estimated_time_minutes": route["estimated_time_minutes"],
+                    "traffic_level": route.get("traffic_level"),
+                    "traffic_description": route.get("traffic_description"),
                 }
             }
             # Store route for vehicle movement simulation
@@ -316,7 +318,9 @@ def assign_hospital(
             route_data["to_hospital"] = {
                 "polyline": route["polyline"],
                 "distance_km": route["distance_km"],
-                "estimated_time_minutes": route["estimated_time_minutes"]
+                "estimated_time_minutes": route["estimated_time_minutes"],
+                "traffic_level": route.get("traffic_level"),
+                "traffic_description": route.get("traffic_description"),
             }
             incident.route_data = route_data
     

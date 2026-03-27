@@ -11,8 +11,8 @@ from typing import List
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
     
-    # Database
-    database_url: str = "postgresql://eros:eros_dev@localhost:5432/eros_db"
+    # Database (defaults to SQLite for easy local dev; override with PostgreSQL in .env)
+    database_url: str = "sqlite:///./eros.db"
     
     # API
     api_host: str = "0.0.0.0"

@@ -13,27 +13,104 @@ The routing considers:
 
 import math
 import heapq
+from datetime import datetime
 from typing import Optional, List, Tuple, Dict
 import networkx as nx
+
+
+# Traffic condition multipliers by hour of day
+# EMS vehicles run lights/sirens but are still affected by congestion
+# Values < 1.0 = slower (heavy traffic), values > 1.0 = faster (clear roads)
+TRAFFIC_PROFILE = {
+    # Overnight (very clear)
+    0: 1.4, 1: 1.4, 2: 1.5, 3: 1.5, 4: 1.4,
+    # Early morning ramp-up
+    5: 1.2, 6: 1.0,
+    # Morning rush hour
+    7: 0.65, 8: 0.6, 9: 0.75,
+    # Mid-day moderate
+    10: 0.9, 11: 0.9, 12: 0.85, 13: 0.85, 14: 0.9, 15: 0.85,
+    # Afternoon/evening rush
+    16: 0.65, 17: 0.6, 18: 0.65, 19: 0.75,
+    # Evening
+    20: 0.9, 21: 1.0, 22: 1.1, 23: 1.3,
+}
 
 
 class RoutingService:
     """
     Route calculation service using A* pathfinding.
-    
+
     For simplicity, uses a pre-built graph of downtown Toronto.
     In production, this could be replaced with OSRM or GraphHopper.
+
+    Traffic conditions are simulated using time-of-day speed multipliers
+    that model real rush-hour patterns in downtown Toronto.
     """
-    
+
     def __init__(self):
         """Initialize the routing service with the road network."""
         self.graph = self._build_toronto_network()
-        # Average speeds (km/h) by road type for EMS (with lights/sirens)
+        # Base speeds (km/h) by road type for EMS (with lights/sirens)
         self.speeds = {
             "highway": 80,
             "arterial": 50,
             "collector": 40,
             "local": 30
+        }
+
+    def get_traffic_multiplier(self, hour: Optional[int] = None) -> float:
+        """
+        Get the current traffic speed multiplier based on time of day.
+
+        EMS vehicles running lights/sirens are partially buffered from traffic
+        (factor of 0.5 applied to the traffic impact), so rush hour still slows
+        them but less than civilian vehicles.
+
+        Args:
+            hour: Hour of day (0-23). Defaults to current local hour.
+
+        Returns:
+            Speed multiplier (e.g. 0.8 = 20% slower than base speed)
+        """
+        if hour is None:
+            hour = datetime.now().hour
+
+        raw = TRAFFIC_PROFILE.get(hour, 1.0)
+        # EMS with lights/sirens only partially affected by traffic
+        # Scale impact: neutral is 1.0; deviation is halved for EMS
+        ems_multiplier = 1.0 + (raw - 1.0) * 0.5
+        return round(ems_multiplier, 3)
+
+    def get_traffic_conditions(self) -> Dict:
+        """
+        Return a human-readable summary of current traffic conditions.
+
+        Used by the simulation status endpoint.
+        """
+        hour = datetime.now().hour
+        raw = TRAFFIC_PROFILE.get(hour, 1.0)
+        ems = self.get_traffic_multiplier(hour)
+
+        if raw <= 0.65:
+            level = "heavy"
+            description = "Rush hour - heavy congestion"
+        elif raw <= 0.85:
+            level = "moderate"
+            description = "Moderate traffic"
+        elif raw <= 1.1:
+            level = "normal"
+            description = "Normal traffic flow"
+        else:
+            level = "clear"
+            description = "Clear roads"
+
+        return {
+            "hour": hour,
+            "level": level,
+            "description": description,
+            "civilian_multiplier": round(raw, 2),
+            "ems_multiplier": ems,
         }
     
     def _build_toronto_network(self) -> nx.Graph:
@@ -256,7 +333,8 @@ class RoutingService:
     def calculate_route(
         self,
         origin_lat: float, origin_lng: float,
-        dest_lat: float, dest_lng: float
+        dest_lat: float, dest_lng: float,
+        hour: Optional[int] = None,
     ) -> Optional[Dict]:
         """
         Calculate the optimal route between two points.
@@ -272,9 +350,12 @@ class RoutingService:
             {
                 "polyline": [[lat, lng], ...],
                 "distance_km": float,
-                "estimated_time_minutes": float
+                "estimated_time_minutes": float,
+                "traffic_level": str,
             }
         """
+        traffic_multiplier = self.get_traffic_multiplier(hour)
+
         # Find nearest nodes
         origin_node = self._find_nearest_node(origin_lat, origin_lng)
         dest_node = self._find_nearest_node(dest_lat, dest_lng)
@@ -289,7 +370,8 @@ class RoutingService:
                 "distance_km": self.haversine_distance(
                     origin_lat, origin_lng, dest_lat, dest_lng
                 ),
-                "estimated_time_minutes": 1.0
+                "estimated_time_minutes": 1.0,
+                "traffic_level": self.get_traffic_conditions()["level"],
             }
         
         # Use NetworkX's A* implementation
@@ -306,55 +388,62 @@ class RoutingService:
             distance = self.haversine_distance(
                 origin_lat, origin_lng, dest_lat, dest_lng
             )
+            effective_speed = 40 * traffic_multiplier
             return {
                 "polyline": [[origin_lat, origin_lng], [dest_lat, dest_lng]],
                 "distance_km": distance,
-                "estimated_time_minutes": (distance / 40) * 60  # Assume 40 km/h
+                "estimated_time_minutes": (distance / effective_speed) * 60,
+                "traffic_level": self.get_traffic_conditions()["level"],
             }
         
         # Build polyline and calculate total distance and time
         polyline = [[origin_lat, origin_lng]]  # Start with actual origin
         total_distance = 0.0
         total_time = 0.0
-        
-        # Add distance from origin to first node
+
+        # Add distance from origin to first node (local-speed approach)
         first_node = self.graph.nodes[path[0]]
         initial_dist = self.haversine_distance(
             origin_lat, origin_lng, first_node['lat'], first_node['lng']
         )
+        effective_local = self.speeds["local"] * traffic_multiplier
         total_distance += initial_dist
-        total_time += (initial_dist / 40) * 60  # Assume 40 km/h to reach network
-        
+        total_time += (initial_dist / effective_local) * 60
+
         # Process path
         for i, node_id in enumerate(path):
             node = self.graph.nodes[node_id]
             polyline.append([node['lat'], node['lng']])
-            
-            # Calculate edge distance and time
+
+            # Calculate edge distance and time with traffic multiplier
             if i > 0:
                 prev_node = path[i - 1]
                 edge = self.graph.edges[prev_node, node_id]
                 dist = edge['distance']
                 road_type = edge.get('road_type', 'local')
-                speed = self.speeds.get(road_type, 30)
-                
+                base_speed = self.speeds.get(road_type, 30)
+                effective_speed = base_speed * traffic_multiplier
+
                 total_distance += dist
-                total_time += (dist / speed) * 60  # Convert to minutes
-        
+                total_time += (dist / effective_speed) * 60  # Convert to minutes
+
         # Add distance from last node to destination
         last_node = self.graph.nodes[path[-1]]
         final_dist = self.haversine_distance(
             last_node['lat'], last_node['lng'], dest_lat, dest_lng
         )
         total_distance += final_dist
-        total_time += (final_dist / 40) * 60
-        
+        total_time += (final_dist / effective_local) * 60
+
         polyline.append([dest_lat, dest_lng])  # End with actual destination
-        
+
+        traffic_info = self.get_traffic_conditions()
         return {
             "polyline": polyline,
             "distance_km": round(total_distance, 2),
-            "estimated_time_minutes": round(total_time, 1)
+            "estimated_time_minutes": round(total_time, 1),
+            "traffic_level": traffic_info["level"],
+            "traffic_description": traffic_info["description"],
         }
     
     def get_network_info(self) -> Dict:

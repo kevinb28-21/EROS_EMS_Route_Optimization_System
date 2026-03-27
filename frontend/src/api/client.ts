@@ -235,4 +235,40 @@ export const routesApi = {
   },
 };
 
+// ============================================================================
+// Simulation API
+// ============================================================================
+
+export const simulationApi = {
+  getStatus: async (): Promise<{
+    simulation_running: boolean;
+    interval_seconds: number | null;
+    traffic: {
+      hour: number;
+      level: string;
+      description: string;
+      civilian_multiplier: number;
+      ems_multiplier: number;
+    };
+  }> => {
+    const { data } = await api.get('/simulation/status');
+    return data;
+  },
+
+  tick: async (): Promise<{ status: string; message: string }> => {
+    const { data } = await api.post('/simulation/tick');
+    return data;
+  },
+
+  generateIncident: async (): Promise<{
+    status: string;
+    incident_id?: number;
+    description?: string;
+    message?: string;
+  }> => {
+    const { data } = await api.post('/simulation/generate-incident');
+    return data;
+  },
+};
+
 export default api;

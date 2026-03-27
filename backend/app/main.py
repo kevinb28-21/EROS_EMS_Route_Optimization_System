@@ -13,33 +13,48 @@ from fastapi.responses import JSONResponse
 from app.config import get_settings
 from app.database import init_db
 from app.routers import incidents, vehicles, hospitals, routes, status_updates
+from app.routers import simulation as simulation_router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
     Lifespan context manager for startup/shutdown events.
-    
+
     On startup:
     - Initialize database tables
     - Seed demo data if empty
-    
+    - Start background simulation engine
+
     On shutdown:
+    - Stop simulation engine
     - Clean up resources
     """
+    settings = get_settings()
+
     # Startup
     print("🚑 EROS Starting up...")
     init_db()
-    
+
     # Seed demo data if database is empty
     from app.services.seeder import seed_demo_data
     seed_demo_data()
-    
+
+    # Start simulation engine if enabled
+    engine = None
+    if settings.simulation_enabled:
+        from app.services.simulation import SimulationEngine
+        engine = SimulationEngine(interval_seconds=settings.simulation_interval_seconds)
+        simulation_router.set_engine(engine)
+        await engine.start()
+
     print("✅ EROS Ready!")
-    
+
     yield
-    
+
     # Shutdown
+    if engine:
+        await engine.stop()
     print("👋 EROS Shutting down...")
 
 
@@ -106,6 +121,11 @@ def create_app() -> FastAPI:
         status_updates.router,
         prefix="/api/v1/status-updates",
         tags=["Status Updates"]
+    )
+    app.include_router(
+        simulation_router.router,
+        prefix="/api/v1/simulation",
+        tags=["Simulation"]
     )
     
     # Health check endpoint

@@ -11,18 +11,21 @@
  */
 
 import { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { 
-  AlertTriangle, 
-  Ambulance, 
-  Building2, 
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  AlertTriangle,
+  Ambulance,
+  Building2,
   Activity,
   Plus,
-  RefreshCw
+  RefreshCw,
+  Play,
+  Zap,
+  Radio
 } from 'lucide-react';
 
-import { incidentsApi, vehiclesApi, hospitalsApi, statusUpdatesApi } from './api/client';
-import type { Incident, Vehicle, Hospital } from './types';
+import { incidentsApi, vehiclesApi, hospitalsApi, statusUpdatesApi, simulationApi } from './api/client';
+import type { Incident } from './types';
 
 import MapPanel from './components/MapPanel';
 import IncidentList from './components/IncidentList';
@@ -42,25 +45,51 @@ function App() {
   // Map focus state
   const [mapCenter, setMapCenter] = useState<[number, number] | null>(null);
   
-  // Fetch data
+  // Fetch data with auto-refresh every 3 seconds to reflect simulation updates
+  const REFETCH_INTERVAL = 3000;
+
   const { data: incidentsData, isLoading: incidentsLoading } = useQuery({
     queryKey: ['incidents'],
     queryFn: () => incidentsApi.list({ page_size: 50 }),
+    refetchInterval: REFETCH_INTERVAL,
   });
 
   const { data: vehiclesData, isLoading: vehiclesLoading } = useQuery({
     queryKey: ['vehicles'],
     queryFn: () => vehiclesApi.list({ page_size: 50 }),
+    refetchInterval: REFETCH_INTERVAL,
   });
 
   const { data: hospitalsData, isLoading: hospitalsLoading } = useQuery({
     queryKey: ['hospitals'],
     queryFn: () => hospitalsApi.list({ page_size: 50 }),
+    refetchInterval: REFETCH_INTERVAL,
   });
 
   const { data: statusUpdates } = useQuery({
     queryKey: ['statusUpdates'],
     queryFn: () => statusUpdatesApi.getRecent(30),
+    refetchInterval: REFETCH_INTERVAL,
+  });
+
+  const { data: simStatus } = useQuery({
+    queryKey: ['simStatus'],
+    queryFn: () => simulationApi.getStatus(),
+    refetchInterval: 10000,
+  });
+
+  // Simulation mutations
+  const tickMutation = useMutation({
+    mutationFn: () => simulationApi.tick(),
+    onSuccess: () => queryClient.invalidateQueries(),
+  });
+
+  const generateMutation = useMutation({
+    mutationFn: () => simulationApi.generateIncident(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['incidents'] });
+      queryClient.invalidateQueries({ queryKey: ['statusUpdates'] });
+    },
   });
 
   // Active incidents (not completed/cancelled)
@@ -99,9 +128,9 @@ function App() {
           </div>
         </div>
         
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           {/* Quick stats */}
-          <div className="hidden md:flex items-center gap-6 mr-4">
+          <div className="hidden md:flex items-center gap-4 mr-2">
             <div className="flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-eros-critical" />
               <span className="text-sm text-eros-text-muted">
@@ -114,8 +143,44 @@ function App() {
                 <span className="font-semibold text-eros-text">{availableVehicles.length}</span> Available
               </span>
             </div>
+            {/* Traffic indicator */}
+            {simStatus?.traffic && (
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-eros-darker border border-eros-border">
+                <Radio className="w-3 h-3 text-eros-text-muted" />
+                <span className={`text-xs font-medium capitalize ${
+                  simStatus.traffic.level === 'heavy' ? 'text-eros-critical' :
+                  simStatus.traffic.level === 'moderate' ? 'text-eros-major' :
+                  simStatus.traffic.level === 'clear' ? 'text-eros-minor' :
+                  'text-eros-text-muted'
+                }`}>
+                  {simStatus.traffic.level} traffic
+                </span>
+              </div>
+            )}
           </div>
-          
+
+          {/* Simulation controls */}
+          <div className="hidden sm:flex items-center gap-2">
+            <button
+              onClick={() => tickMutation.mutate()}
+              disabled={tickMutation.isPending}
+              title="Advance simulation one step"
+              className="btn btn-secondary flex items-center gap-1.5 px-2 py-1.5 text-xs"
+            >
+              <Play className="w-3 h-3" />
+              <span>Tick</span>
+            </button>
+            <button
+              onClick={() => generateMutation.mutate()}
+              disabled={generateMutation.isPending}
+              title="Generate a random incident"
+              className="btn btn-secondary flex items-center gap-1.5 px-2 py-1.5 text-xs"
+            >
+              <Zap className="w-3 h-3" />
+              <span>Incident</span>
+            </button>
+          </div>
+
           <button
             onClick={handleRefresh}
             className="btn btn-secondary flex items-center gap-2"
@@ -123,7 +188,7 @@ function App() {
             <RefreshCw className="w-4 h-4" />
             <span className="hidden sm:inline">Refresh</span>
           </button>
-          
+
           <button
             onClick={() => setShowCreateIncident(true)}
             className="btn btn-primary flex items-center gap-2"
