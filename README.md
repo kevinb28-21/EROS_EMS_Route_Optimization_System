@@ -112,10 +112,11 @@ docker compose up
 
 ### Railway — API
 
+The repo includes **`railway.toml`** (builder **`DOCKERFILE`**) and a **root `Dockerfile`** that copies `backend/` only. This avoids **“Error creating build plan with Railpack”**, which happens when Railway tries to auto-detect a single app at the monorepo root (frontend + backend).
+
 1. New project → connect GitHub → add **PostgreSQL**.
-2. Add a service, **root directory:** `backend`.
-3. Deploy with **Dockerfile** or **Nixpacks** (`Procfile` uses `$PORT`).
-4. Set variables, for example:
+2. Create/deploy the service from this repo — **leave Root Directory empty** (repo root) so Railway uses `railway.toml` + root `Dockerfile`, **or** set Root Directory to **`backend`** and use `backend/Dockerfile` (disable conflicting root config if you duplicate services).
+3. Set variables, for example:
 
 | Variable | Notes |
 |----------|--------|
@@ -124,7 +125,7 @@ docker compose up
 | `DEBUG` | `false` in production |
 | `SIMULATION_ENABLED` | `true` or `false` |
 
-5. Copy the public **HTTPS API URL** (e.g. `https://….up.railway.app`). Health: `GET /health`.
+4. Copy the public **HTTPS API URL** (e.g. `https://….up.railway.app`). Health: `GET /health`.
 
 ### Netlify — frontend
 

@@ -1,0 +1,12 @@
+# Railway config-as-code — https://docs.railway.com/config-as-code/reference
+# Fixes "Error creating build plan with Railpack" on monorepos: force Docker build
+# instead of Railpack auto-detect (which cannot pick backend vs frontend at repo root).
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+watchPatterns = ["backend/**", "Dockerfile", "railway.toml"]
+
+[deploy]
+healthcheckPath = "/health"
+restartPolicyType = "ON_FAILURE"

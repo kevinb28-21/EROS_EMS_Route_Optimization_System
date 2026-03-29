@@ -1,0 +1,13 @@
+# Root Docker build context (Railway) — only backend is needed
+.git
+.github
+frontend
+node_modules
+**/__pycache__
+**/.pytest_cache
+**/*.pyc
+venv
+.env
+.venv
+*.md
+.claude
