@@ -293,7 +293,42 @@ class RoutingService:
         c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
         
         return R * c
-    
+
+    def _densify_polyline(
+        self,
+        points: List[List[float]],
+        max_segment_km: float = 0.025,
+    ) -> List[List[float]]:
+        """
+        Insert intermediate points along each segment so the map polyline follows
+        the road graph visually (short straight segments, not one long chord).
+
+        max_segment_km ~25 m between points for a smooth street-following look.
+        """
+        if len(points) < 2:
+            return points
+        out: List[List[float]] = []
+        for i in range(len(points) - 1):
+            lat1, lng1 = points[i][0], points[i][1]
+            lat2, lng2 = points[i + 1][0], points[i + 1][1]
+            seg_km = self.haversine_distance(lat1, lng1, lat2, lng2)
+            if seg_km < 0.0005:
+                if not out or out[-1] != [lat1, lng1]:
+                    out.append([lat1, lng1])
+                continue
+            n_steps = max(2, int(seg_km / max_segment_km) + 1)
+            for s in range(n_steps):
+                t = s / (n_steps - 1) if n_steps > 1 else 0.0
+                lat = lat1 + t * (lat2 - lat1)
+                lng = lng1 + t * (lng2 - lng1)
+                pt = [lat, lng]
+                if not out or (abs(out[-1][0] - pt[0]) > 1e-7 or abs(out[-1][1] - pt[1]) > 1e-7):
+                    out.append(pt)
+        # Degenerate segment (same start/end) must still yield ≥2 points for map clients
+        if len(out) < 2 and len(points) >= 2:
+            return [points[0], points[-1]]
+        return out
+
     def _find_nearest_node(self, lat: float, lng: float) -> Optional[str]:
         """
         Find the nearest graph node to a given coordinate.
@@ -365,8 +400,9 @@ class RoutingService:
         
         # Handle same node case
         if origin_node == dest_node:
+            pl = self._densify_polyline([[origin_lat, origin_lng], [dest_lat, dest_lng]])
             return {
-                "polyline": [[origin_lat, origin_lng], [dest_lat, dest_lng]],
+                "polyline": pl,
                 "distance_km": self.haversine_distance(
                     origin_lat, origin_lng, dest_lat, dest_lng
                 ),
@@ -384,13 +420,14 @@ class RoutingService:
                 weight='distance'
             )
         except nx.NetworkXNoPath:
-            # No path found - return straight line as fallback
+            # No path found - return straight line as fallback (still densified)
             distance = self.haversine_distance(
                 origin_lat, origin_lng, dest_lat, dest_lng
             )
             effective_speed = 40 * traffic_multiplier
+            pl = self._densify_polyline([[origin_lat, origin_lng], [dest_lat, dest_lng]])
             return {
-                "polyline": [[origin_lat, origin_lng], [dest_lat, dest_lng]],
+                "polyline": pl,
                 "distance_km": distance,
                 "estimated_time_minutes": (distance / effective_speed) * 60,
                 "traffic_level": self.get_traffic_conditions()["level"],
@@ -438,8 +475,9 @@ class RoutingService:
         polyline.append([dest_lat, dest_lng])  # End with actual destination
 
         traffic_info = self.get_traffic_conditions()
+        dense_polyline = self._densify_polyline(polyline)
         return {
-            "polyline": polyline,
+            "polyline": dense_polyline,
             "distance_km": round(total_distance, 2),
             "estimated_time_minutes": round(total_time, 1),
             "traffic_level": traffic_info["level"],

@@ -7,7 +7,8 @@ Handles CRUD operations for emergency incidents and dispatch actions.
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
-from datetime import datetime
+import random
+from datetime import datetime, timedelta
 
 from app.database import get_db
 from app.models import Incident, Vehicle, Hospital, StatusUpdate, IncidentStatus, VehicleStatus
@@ -230,30 +231,51 @@ def assign_vehicle(
     # Update vehicle status
     vehicle.status = VehicleStatus.DISPATCHED
     
-    # Calculate route if requested
-    if request.auto_route:
-        from app.services.routing import RoutingService
-        routing = RoutingService()
-        route = routing.calculate_route(
-            vehicle.latitude, vehicle.longitude,
-            incident.latitude, incident.longitude
+    # Route + simulated driver timeline (road-following polyline, random ETA to on-scene)
+    from app.services.routing import RoutingService
+    routing = RoutingService()
+    route = routing.calculate_route(
+        vehicle.latitude, vehicle.longitude,
+        incident.latitude, incident.longitude
+    )
+    if route:
+        to_scene = {
+            "polyline": route["polyline"],
+            "distance_km": route["distance_km"],
+            "estimated_time_minutes": route["estimated_time_minutes"],
+            "traffic_level": route.get("traffic_level"),
+            "traffic_description": route.get("traffic_description"),
+        }
+    else:
+        pl = routing._densify_polyline(
+            [[vehicle.latitude, vehicle.longitude], [incident.latitude, incident.longitude]]
         )
-        if route:
-            incident.route_data = {
-                "to_scene": {
-                    "polyline": route["polyline"],
-                    "distance_km": route["distance_km"],
-                    "estimated_time_minutes": route["estimated_time_minutes"],
-                    "traffic_level": route.get("traffic_level"),
-                    "traffic_description": route.get("traffic_description"),
-                }
-            }
-            # Store route for vehicle movement simulation
-            vehicle.route_progress = {
-                "waypoints": route["polyline"],
-                "current_index": 0,
-                "target": "scene"
-            }
+        to_scene = {
+            "polyline": pl,
+            "distance_km": routing.haversine_distance(
+                vehicle.latitude, vehicle.longitude,
+                incident.latitude, incident.longitude,
+            ),
+            "estimated_time_minutes": 1.0,
+            "traffic_level": None,
+            "traffic_description": None,
+        }
+
+    started = datetime.utcnow()
+    delay_sec = random.randint(25, 120)
+    scene_arrival = started + timedelta(seconds=delay_sec)
+
+    incident.route_data = {
+        "to_scene": to_scene,
+        "driver_sim": {
+            "polyline": to_scene["polyline"],
+            "started_at": started.isoformat(),
+            "scene_arrival_at": scene_arrival.isoformat(),
+            "midpoint_logged": False,
+        },
+    }
+    # Timer + interpolation drive movement; old per-tick waypoint list is not used
+    vehicle.route_progress = None
     
     # Log the dispatch
     log = StatusUpdate(

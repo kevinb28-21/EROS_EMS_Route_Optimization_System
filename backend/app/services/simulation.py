@@ -12,7 +12,7 @@ This is designed for course project demos, not production use.
 import random
 import asyncio
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List, Tuple, Any, Dict
 from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.models import (
@@ -80,19 +80,127 @@ class SimulationEngine:
         """Run a single simulation tick."""
         db = SessionLocal()
         try:
-            # Update vehicle positions
+            # Timer-based dispatch → on-scene (driver sim along road polyline)
+            self._update_driver_simulation(db)
+            # Legacy waypoint movement (transport / no driver_sim)
             self._update_vehicle_positions(db)
-            
+
             # Fluctuate hospital capacity
             self._fluctuate_hospital_capacity(db)
-            
+
             db.commit()
         except Exception as e:
             db.rollback()
             raise e
         finally:
             db.close()
-    
+
+    @staticmethod
+    def _position_on_polyline(polyline: List[List[float]], t: float) -> Tuple[float, float]:
+        """Linear interpolation along polyline, t in [0, 1]."""
+        t = max(0.0, min(1.0, t))
+        if not polyline:
+            return 0.0, 0.0
+        if len(polyline) == 1:
+            return polyline[0][0], polyline[0][1]
+        idx = t * (len(polyline) - 1)
+        i = int(idx)
+        f = idx - i
+        if i >= len(polyline) - 1:
+            return polyline[-1][0], polyline[-1][1]
+        a, b = polyline[i], polyline[i + 1]
+        return (
+            a[0] + f * (b[0] - a[0]),
+            a[1] + f * (b[1] - a[1]),
+        )
+
+    def _parse_dt(self, s: str) -> datetime:
+        """Parse naive UTC ISO from incident JSON."""
+        if not s:
+            return datetime.utcnow()
+        s = s.replace("Z", "")
+        try:
+            return datetime.fromisoformat(s)
+        except ValueError:
+            return datetime.utcnow()
+
+    def _update_driver_simulation(self, db: Session):
+        """
+        Move dispatched units along the densified road polyline and auto-transition
+        to on-scene when the random ETA elapses (simulated radio / MDT updates).
+        """
+        incidents = (
+            db.query(Incident)
+            .filter(Incident.status == IncidentStatus.DISPATCHED)
+            .all()
+        )
+        now = datetime.utcnow()
+
+        for incident in incidents:
+            rd: Optional[Dict[str, Any]] = incident.route_data
+            if not rd or "driver_sim" not in rd:
+                continue
+            ds = rd["driver_sim"]
+            if not ds:
+                continue
+
+            vehicle = incident.assigned_vehicle
+            if not vehicle:
+                continue
+
+            poly = ds.get("polyline") or []
+            if len(poly) < 2:
+                continue
+
+            start = self._parse_dt(ds.get("started_at", ""))
+            end = self._parse_dt(ds.get("scene_arrival_at", ""))
+            total_sec = max(1.0, (end - start).total_seconds())
+            elapsed = (now - start).total_seconds()
+
+            if now >= end:
+                vehicle.latitude = incident.latitude
+                vehicle.longitude = incident.longitude
+                vehicle.status = VehicleStatus.ON_SCENE
+                vehicle.updated_at = now
+                incident.status = IncidentStatus.ON_SCENE
+                incident.updated_at = now
+                # Clear driver sim; keep to_scene polyline for map history
+                rd["driver_sim"] = None
+                incident.route_data = rd
+                log = StatusUpdate(
+                    incident_id=incident.id,
+                    vehicle_id=vehicle.id,
+                    message=f"{vehicle.call_sign} on scene — unit arrived (simulated)",
+                    update_type="arrival",
+                    source="unit",
+                )
+                db.add(log)
+                continue
+
+            t_prog = min(1.0, max(0.0, elapsed / total_sec))
+            lat, lng = self._position_on_polyline(poly, t_prog)
+            vehicle.latitude = lat
+            vehicle.longitude = lng
+            vehicle.updated_at = now
+
+            # Mid-route radio-style update once per run
+            if t_prog >= 0.45 and not ds.get("midpoint_logged"):
+                ds["midpoint_logged"] = True
+                eta_left = max(0, int((end - now).total_seconds()))
+                log = StatusUpdate(
+                    incident_id=incident.id,
+                    vehicle_id=vehicle.id,
+                    message=(
+                        f"{vehicle.call_sign} en route — ETA ~{eta_left}s "
+                        f"(simulated driver update)"
+                    ),
+                    update_type="radio",
+                    source="unit",
+                )
+                db.add(log)
+                rd["driver_sim"] = ds
+                incident.route_data = rd
+
     def _update_vehicle_positions(self, db: Session):
         """
         Move vehicles along their routes.
@@ -108,9 +216,21 @@ class SimulationEngine:
         ).all()
         
         for vehicle in vehicles:
+            # Driver simulation handles DISPATCHED → on_scene when driver_sim is set
+            inc = (
+                db.query(Incident)
+                .filter(
+                    Incident.assigned_vehicle_id == vehicle.id,
+                    Incident.status == IncidentStatus.DISPATCHED,
+                )
+                .first()
+            )
+            if inc and inc.route_data and inc.route_data.get("driver_sim"):
+                continue
+
             if not vehicle.route_progress:
                 continue
-            
+
             waypoints = vehicle.route_progress.get("waypoints", [])
             current_index = vehicle.route_progress.get("current_index", 0)
             target = vehicle.route_progress.get("target", "scene")
