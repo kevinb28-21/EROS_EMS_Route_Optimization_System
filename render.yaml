@@ -1,0 +1,16 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+# Ensures the API builds from backend/ (monorepo). Link Postgres in the dashboard
+# and set DATABASE_URL + CORS_ORIGINS on the web service.
+
+services:
+  - type: web
+    name: eros-api
+    runtime: python
+    plan: free
+    region: oregon
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    # Python version: backend/runtime.txt → python-3.11.9
+    # Add DATABASE_URL, CORS_ORIGINS in the Render dashboard after deploy.

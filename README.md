@@ -136,6 +136,21 @@ docker compose up
 
 `CORS_ORIGINS` on Railway must include your exact Netlify origin (`https://…netlify.app`).
 
+### Render (alternative to Railway)
+
+Use this if Railway credits are exhausted. The repo includes **`render.yaml`** so Render builds from **`backend/`** (avoids “could not find `requirements.txt`” / wrong build root).
+
+1. **New → Blueprint** (or Web Service) → connect this GitHub repo.
+2. If not using Blueprint: create a **Web Service**, set **Root Directory** to **`backend`**, **Runtime** Python.
+3. **Build command:** `pip install -r requirements.txt`  
+   **Start command:** `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+4. Add **PostgreSQL** (or use **Neon** / **Supabase** and paste `DATABASE_URL`).
+5. Set **`DATABASE_URL`**, **`CORS_ORIGINS`** (your frontend URL), **`DEBUG=false`** (optional).
+
+**If the build failed with exit code 1:** almost always the service was built from the **repo root** instead of **`backend/`**. Fix in **Settings → Root Directory → `backend`**, or redeploy using **`render.yaml`**.
+
+Free web services **sleep after idle**; first request after sleep can be slow (~30–60+ s).
+
 ---
 
 ## Configuration
