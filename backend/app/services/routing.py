@@ -14,8 +14,9 @@ The routing considers:
 import math
 import heapq
 from datetime import datetime
-from typing import Optional, List, Tuple, Dict
+from typing import Optional, List, Tuple, Dict, Any
 import networkx as nx
+import httpx
 
 
 # Traffic condition multipliers by hour of day
@@ -57,6 +58,61 @@ class RoutingService:
             "arterial": 50,
             "collector": 40,
             "local": 30
+        }
+        try:
+            # Optional external routing for street-accurate geometry (OSRM)
+            from app.config import get_settings
+            self.osrm_url = get_settings().osrm_url
+        except Exception:
+            self.osrm_url = None
+
+    def _osrm_route(
+        self,
+        origin_lat: float, origin_lng: float,
+        dest_lat: float, dest_lng: float,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Call OSRM route API for road-accurate geometry.
+
+        Expects osrm_url like: https://router.project-osrm.org
+        """
+        if not self.osrm_url:
+            return None
+        base = str(self.osrm_url).rstrip("/")
+        coords = f"{origin_lng},{origin_lat};{dest_lng},{dest_lat}"
+        url = f"{base}/route/v1/driving/{coords}"
+        params = {
+            "overview": "full",
+            "geometries": "geojson",
+            "steps": "false",
+        }
+        try:
+            with httpx.Client(timeout=8.0, follow_redirects=True) as client:
+                resp = client.get(url, params=params)
+                resp.raise_for_status()
+                data = resp.json()
+        except Exception:
+            return None
+
+        routes = data.get("routes") or []
+        if not routes:
+            return None
+        r0 = routes[0]
+        geom = (r0.get("geometry") or {}).get("coordinates") or []
+        if len(geom) < 2:
+            return None
+
+        # OSRM gives [lng, lat]; we use [lat, lng]
+        polyline = [[pt[1], pt[0]] for pt in geom]
+        distance_km = float(r0.get("distance", 0.0)) / 1000.0
+        time_min = float(r0.get("duration", 0.0)) / 60.0
+        traffic_info = self.get_traffic_conditions()
+        return {
+            "polyline": polyline,
+            "distance_km": round(distance_km, 2),
+            "estimated_time_minutes": round(time_min, 1),
+            "traffic_level": traffic_info["level"],
+            "traffic_description": traffic_info["description"],
         }
 
     def get_traffic_multiplier(self, hour: Optional[int] = None) -> float:
@@ -389,6 +445,11 @@ class RoutingService:
                 "traffic_level": str,
             }
         """
+        # If OSRM is configured, prefer it for street-accurate routing geometry
+        osrm = self._osrm_route(origin_lat, origin_lng, dest_lat, dest_lng)
+        if osrm:
+            return osrm
+
         traffic_multiplier = self.get_traffic_multiplier(hour)
 
         # Find nearest nodes
