@@ -113,6 +113,7 @@ class RoutingService:
             "estimated_time_minutes": round(time_min, 1),
             "traffic_level": traffic_info["level"],
             "traffic_description": traffic_info["description"],
+            "route_source": "osrm",
         }
 
     def get_traffic_multiplier(self, hour: Optional[int] = None) -> float:
@@ -469,6 +470,7 @@ class RoutingService:
                 ),
                 "estimated_time_minutes": 1.0,
                 "traffic_level": self.get_traffic_conditions()["level"],
+                "route_source": "graph",
             }
         
         # Use NetworkX's A* implementation
@@ -492,6 +494,7 @@ class RoutingService:
                 "distance_km": distance,
                 "estimated_time_minutes": (distance / effective_speed) * 60,
                 "traffic_level": self.get_traffic_conditions()["level"],
+                "route_source": "fallback",
             }
         
         # Build polyline and calculate total distance and time
@@ -543,6 +546,7 @@ class RoutingService:
             "estimated_time_minutes": round(total_time, 1),
             "traffic_level": traffic_info["level"],
             "traffic_description": traffic_info["description"],
+            "route_source": "graph",
         }
     
     def get_network_info(self) -> Dict:

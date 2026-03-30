@@ -257,6 +257,7 @@ class RouteResponse(BaseModel):
     polyline: List[List[float]]  # List of [lat, lng] pairs
     traffic_level: Optional[str] = None
     traffic_description: Optional[str] = None
+    route_source: Optional[str] = None  # osrm | graph | fallback
 
 
 class HospitalRecommendation(BaseModel):

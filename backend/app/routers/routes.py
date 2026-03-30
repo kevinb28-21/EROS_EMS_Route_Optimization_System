@@ -44,6 +44,7 @@ def calculate_route(request: RouteRequest):
         polyline=result["polyline"],
         traffic_level=result.get("traffic_level"),
         traffic_description=result.get("traffic_description"),
+        route_source=result.get("route_source"),
     )
 
 

@@ -245,6 +245,7 @@ def assign_vehicle(
             "estimated_time_minutes": route["estimated_time_minutes"],
             "traffic_level": route.get("traffic_level"),
             "traffic_description": route.get("traffic_description"),
+            "route_source": route.get("route_source"),
         }
     else:
         pl = routing._densify_polyline(
@@ -259,6 +260,7 @@ def assign_vehicle(
             "estimated_time_minutes": 1.0,
             "traffic_level": None,
             "traffic_description": None,
+            "route_source": "fallback",
         }
 
     started = datetime.utcnow()
@@ -343,6 +345,7 @@ def assign_hospital(
                 "estimated_time_minutes": route["estimated_time_minutes"],
                 "traffic_level": route.get("traffic_level"),
                 "traffic_description": route.get("traffic_description"),
+                "route_source": route.get("route_source"),
             }
             incident.route_data = route_data
     
