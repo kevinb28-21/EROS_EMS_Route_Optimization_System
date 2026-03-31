@@ -1,6 +1,6 @@
 # EROS — EMS Route Optimization System
 
-A unified EMS dispatcher system that supports route planning, hospital selection, traffic-aware ETAs, operational simulation, and a single web dashboard.
+We built EROS as a unified EMS dispatcher system that supports route planning, hospital selection, traffic-aware ETAs, operational simulation, and a single web dashboard.
 
 **Course:** COE892 — Distributed Systems and Cloud Computing (W2026, TMU)
 
@@ -29,20 +29,20 @@ EROS_EMS-Route_Optimization_System/
 ## Features
 
 ### Intelligent routing
-- **A\*** pathfinding on a simplified Toronto road network (NetworkX graph)
-- Route polylines, distance, and ETA between incidents, vehicles, and hospitals
-- **Traffic simulation** — time-of-day speed multipliers (rush hour, night, etc.); ETAs reflect current traffic level
+- We use **A\*** pathfinding on a simplified Toronto road network (NetworkX graph).
+- We compute route polylines, distance, and ETA between incidents, vehicles, and hospitals.
+- We simulate **traffic conditions** with time-of-day speed multipliers (rush hour, night, etc.), so ETAs reflect the current traffic level.
 
 ### Hospital recommendation
-- Weighted scoring: distance (35%), capacity (30%), specialty match (25%), trauma center bonus (10%)
-- Respects hospital status (open, diversion, closed) and incident severity
+- We rank hospitals using a weighted scoring model: distance (35%), capacity (30%), specialty match (25%), trauma center bonus (10%).
+- Recommendations respect hospital status (open, diversion, closed) and incident severity.
 
 ### Dispatcher dashboard
-- React Leaflet map (CARTO Dark / OSM-based tiles)
-- Incident, vehicle, and hospital panels; event log; full incident lifecycle actions
-- **Auto-refresh** every 3 seconds for live simulation state
-- **Simulation toolbar** — **Tick** (advance one step), **Incident** (random downtown incident)
-- **Traffic badge** in the header (congestion level)
+- We render a React Leaflet map (CARTO Dark / OSM-based tiles).
+- We provide incident, vehicle, and hospital panels plus an event log, with full incident lifecycle actions.
+- We **auto-refresh** every 3 seconds for a live simulation feel.
+- We added a simulation toolbar: **Tick** (advance one step) and **Incident** (generate a random downtown incident).
+- We show a traffic badge in the header (congestion level).
 
 ### Architecture
 - **Frontend:** React + Vite, TanStack Query  
@@ -112,7 +112,7 @@ docker compose up
 
 ### Railway — API
 
-The repo includes **`railway.toml`** (builder **`DOCKERFILE`**) and a **root `Dockerfile`** that copies `backend/` only. This avoids **“Error creating build plan with Railpack”**, which happens when Railway tries to auto-detect a single app at the monorepo root (frontend + backend).
+We include **`railway.toml`** (builder **`DOCKERFILE`**) and a **root `Dockerfile`** that copies `backend/` only. This avoids **“Error creating build plan with Railpack”**, which can happen when Railway tries to auto-detect a single app at the monorepo root (frontend + backend).
 
 1. New project → connect GitHub → add **PostgreSQL**.
 2. Create/deploy the service from this repo — **leave Root Directory empty** (repo root) so Railway uses `railway.toml` + root `Dockerfile`, **or** set Root Directory to **`backend`** and use `backend/Dockerfile` (disable conflicting root config if you duplicate services).
@@ -135,7 +135,7 @@ The repo includes **`railway.toml`** (builder **`DOCKERFILE`**) and a **root `Do
 
 ### CORS
 
-`CORS_ORIGINS` on Railway must include your exact Netlify origin (`https://…netlify.app`).
+We set `CORS_ORIGINS` on Railway to include our exact Netlify origin (`https://…netlify.app`).
 
 ### Render (alternative to Railway)
 
@@ -166,6 +166,7 @@ Free web services **sleep after idle**; first request after sleep can be slow (~
 | `CORS_ORIGINS` | Comma-separated browser origins |
 | `SIMULATION_ENABLED` | Run background simulation engine |
 | `SIMULATION_INTERVAL_SECONDS` | Tick interval |
+| `OSRM_URL` | Optional: set to an OSRM base URL to return road-accurate route geometry (fallback to graph routing if unset) |
 
 ### Frontend (Netlify build env)
 
@@ -217,7 +218,7 @@ pytest tests/test_routing.py -v
 
 ## Design notes
 
-- **Routing:** A* with Haversine heuristic; road-type base speeds; traffic multipliers by time of day.
+- **Routing:** A* with a Haversine heuristic; road-type base speeds; traffic multipliers by time of day. Optionally, we can use OSRM geometry when `OSRM_URL` is set.
 - **Hospital scoring:** Distance, capacity, specialties, trauma center bonus for critical cases.
 - **Frontend:** TanStack Query with ~3s refetch; dark “command center” UI.
 
@@ -225,7 +226,7 @@ pytest tests/test_routing.py -v
 
 ## Limitations & future work
 
-- Simplified road graph (no OSRM/GraphHopper in-tree).
+- Simplified road graph by default (we can optionally use OSRM geometry when `OSRM_URL` is configured).
 - Simulated GPS / capacity (no live feeds).
 - No auth (demo / course scope).
 - Polling instead of WebSockets for real-time updates.
@@ -236,4 +237,4 @@ pytest tests/test_routing.py -v
 
 Educational use — COE892, Winter 2026, Toronto Metropolitan University.
 
-**Authors:** project team (COE892 W2026).
+**Authors:** Kevin Bhatt, Kulraj Bahia, Raymond Vo, Lishu Ma.
